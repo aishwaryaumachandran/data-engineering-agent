@@ -5,6 +5,7 @@ __pycache__/
 *.egg
 .venv/
 venv/
+env/
 .pytest_cache/
 .coverage
 htmlcov/
@@ -48,3 +49,5 @@ current_state*.md
 gemini.md
 docs/transcript*.txt
 docs/transcript*.md
+*CLIENT_001/*
+output/

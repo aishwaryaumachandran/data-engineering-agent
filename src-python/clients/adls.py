@@ -24,7 +24,7 @@ def upload_file(container: str, path: str, data: bytes) -> None:
     client = get_adls_client()
     fs = client.get_file_system_client(container)
     file_client = fs.get_file_client(path)
-    file_client.upload_data(data, overwrite=True)
+    file_client.upload_data(data, overwrite=True, connection_timeout=300, read_timeout=300)
 
 
 def list_files(container: str, prefix: str = "") -> list[str]:
@@ -41,3 +41,4 @@ def get_file_metadata(container: str, path: str) -> dict:
     file_client = fs.get_file_client(path)
     props = file_client.get_file_properties()
     return {"etag": props.etag, "size": props.size, "last_modified": str(props.last_modified)}
+

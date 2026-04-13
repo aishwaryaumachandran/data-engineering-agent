@@ -4,16 +4,25 @@ Usage:
     python scripts/upload_sample_data.py
 
 Requires:
-    - ADLS_ACCOUNT_NAME environment variable
+    - .env file with STORAGE_ACCOUNT_NAME
     - Azure CLI login (az login) for DefaultAzureCredential
 """
 
 import os
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
 
 # Add src to path for imports
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src-python"))
+
+# Load environment variables from .env file
+env_file = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(env_file)
+
+# Set ADLS_ACCOUNT_NAME for the ADLS client
+if "STORAGE_ACCOUNT_NAME" in os.environ and "ADLS_ACCOUNT_NAME" not in os.environ:
+    os.environ["ADLS_ACCOUNT_NAME"] = os.environ["STORAGE_ACCOUNT_NAME"]
 
 from clients.adls import upload_file
 
@@ -55,3 +64,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
