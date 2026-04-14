@@ -56,9 +56,8 @@ public class AdlsService : IAdlsService
 
         foreach (var worksheet in workbook.Worksheets)
         {
-            var totalRows = Math.Max(0, worksheet.RowsUsed().Count() - 1); // Exclude header
-            var (columns, rows) = ReadWorksheet(worksheet, maxRows: 10);
-            result[worksheet.Name] = new SheetData(columns, totalRows, rows);
+            var (columns, rows) = ReadWorksheet(worksheet, maxRows: int.MaxValue);
+            result[worksheet.Name] = new SheetData(columns, rows.Count, rows);
         }
 
         return result;
@@ -113,23 +112,53 @@ public class AdlsService : IAdlsService
         var columns = new List<string>();
         var rows = new List<Dictionary<string, object?>>();
 
-        var firstRow = worksheet.FirstRowUsed();
-        if (firstRow == null) return (columns, rows);
+        // Scan the first 20 used rows and pick the one with the most non-empty cells.
+        // Header rows are typically the densest row in the preamble area because
+        // title/description rows only fill 1-2 cells.
+        var usedRows = worksheet.RowsUsed().Take(20).ToList();
+        if (usedRows.Count == 0) return (columns, rows);
 
-        // Read headers
-        foreach (var cell in firstRow.CellsUsed())
+        int bestRowIndex = 0;
+        int bestCount = 0;
+
+        for (int i = 0; i < usedRows.Count; i++)
         {
-            columns.Add(cell.GetString());
+            int nonEmpty = usedRows[i].CellsUsed()
+                .Count(c => !string.IsNullOrWhiteSpace(c.GetString()));
+
+            if (nonEmpty > bestCount)
+            {
+                bestCount = nonEmpty;
+                bestRowIndex = i;
+            }
         }
 
-        // Read data rows
-        var dataRows = worksheet.RowsUsed().Skip(1).Take(maxRows);
+        // Only skip preamble if the best row has more cells than the first row
+        int firstRowCount = usedRows[0].CellsUsed()
+            .Count(c => !string.IsNullOrWhiteSpace(c.GetString()));
+        int headerRowIndex = bestCount > firstRowCount ? bestRowIndex : 0;
+
+        var headerRow = usedRows[headerRowIndex];
+
+        // Read headers, skipping empty cells
+        foreach (var cell in headerRow.CellsUsed())
+        {
+            var value = cell.GetString().Trim();
+            if (!string.IsNullOrEmpty(value))
+                columns.Add(value);
+        }
+
+        // Read data rows after the header
+        var dataRows = worksheet.RowsUsed()
+            .Where(r => r.RowNumber() > headerRow.RowNumber())
+            .Take(maxRows);
+
         foreach (var row in dataRows)
         {
             var dict = new Dictionary<string, object?>();
             for (int i = 0; i < columns.Count; i++)
             {
-                var cell = row.Cell(i + 1);
+                var cell = row.Cell(headerRow.CellsUsed().ElementAt(i).Address.ColumnNumber);
                 dict[columns[i]] = cell.IsEmpty() ? null : cell.Value.ToObject();
             }
             rows.Add(dict);

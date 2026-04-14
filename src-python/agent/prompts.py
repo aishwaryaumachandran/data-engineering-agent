@@ -93,12 +93,17 @@ STEP TYPES - use the appropriate type for each transformation step:
   "type": "output",
   "title": "Write output",
   "format": "parquet",
-  "destination": "DNAV Fund Transactions"
+  "destination": "DNAV Fund Transactions",
+  "output_tabs": ["Fund Transactions", "Fund Holdings", "Account Balances"]
 }
 
-IMPORTANT:
+CRITICAL INSTRUCTIONS:
+- COMPLETENESS IS THE TOP PRIORITY. Extract EVERY SINGLE column mapping from the mapping spreadsheet — do NOT summarize, abbreviate, or skip any mappings. Missing mappings cause incorrect output.
+- Examine ALL sheets/tabs in the mapping spreadsheet — not just the first one. Lookup tabs (e.g. T_TYPE mapping, A_GEOG codes, currency codes, reversal flags) contain critical code standardization rules that must be captured as lookup_join or business_rule steps.
+- For each lookup/reference tab, create a lookup_join step that documents the specific value mappings.
+- Cross-reference the data profile with the mapping: if a date column is stored as integers (e.g. 20240115) note source format as yyyyMMdd; if stored as strings like "01/15/2024" note as MM/dd/yyyy.
+- Include ALL required output tabs/files by name in the output step.
 - Use clear, non-technical language that auditors can understand
-- Include ALL field mappings from the mapping spreadsheet
 - Group related mappings into single field_mapping steps where logical
 - Order steps logically (read → map → transform → filter → output)
 - Return ONLY valid JSON, no markdown or explanatory text"""
@@ -139,7 +144,10 @@ Requirements:
 
 The code should be a complete, self-contained script that can run on Databricks.
 
-CRITICAL: Return ONLY the Python code. No explanatory text, no markdown formatting, no code fences. The output must be valid Python that can be executed directly.
+CRITICAL RULES:
+- Implement EVERY column mapping, calculation, filter, and business rule from the pseudocode. Do NOT skip or summarize any mappings.
+- Use the EXACT source column names from the source data columns list below.
+- Return ONLY the Python code. No explanatory text, no markdown formatting, no code fences. The output must be valid Python that can be executed directly.
 
 Input path: {input_path}
 Output path: {output_path}
@@ -160,6 +168,15 @@ Common issues to fix:
 - Missing columns: check if the column exists before referencing it
 - f-string backslash issues: move backslashes outside of f-string expressions
 - File path issues: always use abfss:// paths directly, never /dbfs/ paths
+- Type mismatch in calculations: add .cast(DoubleType()) before arithmetic operations
+- Missing null guard on ~isin(): use F.col('X').isNull() | ~F.col('X').isin([...])
+- Date format wrong: integer dates like 20240115 need "yyyyMMdd", not "MM/dd/yyyy"
+
+DO NOT change:
+- The file reading pattern (keep binaryFile for Excel, spark.read.csv for CSV — do NOT use com.crealytics.spark.excel)
+- The abfss:// paths (do NOT switch to /dbfs/ or local paths)
+- The output format (keep parquet write)
+- Any column mappings or filters that are NOT related to the error
 
 CRITICAL: Return ONLY the Python code. No explanatory text, no markdown formatting, no code fences. The output must be valid Python that can be executed directly.
 

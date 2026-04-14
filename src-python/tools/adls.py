@@ -20,14 +20,33 @@ def read_mapping_spreadsheet(path: str) -> dict:
 
     result = {}
     for sheet_name in wb.sheetnames:
-        df = pd.read_excel(io.BytesIO(data), sheet_name=sheet_name)
+        header_row = _detect_header_row(io.BytesIO(data), sheet_name)
+        df = pd.read_excel(io.BytesIO(data), sheet_name=sheet_name, header=header_row)
+        df = df.dropna(how="all")
+        df = df.loc[:, ~df.columns.str.startswith("Unnamed")]
         result[sheet_name] = {
             "columns": list(df.columns),
             "row_count": len(df),
-            "sample_rows": df.head(10).to_dict(orient="records"),
+            "rows": df.to_dict(orient="records"),
         }
 
     return result
+
+
+def _detect_header_row(file_bytes: io.BytesIO, sheet_name: str) -> int:
+    """Find the header row by picking the row with the most non-empty cells
+    in the first 20 rows. Header rows are typically the densest row in a
+    preamble area because title/description rows only fill 1-2 cells."""
+    df_raw = pd.read_excel(file_bytes, sheet_name=sheet_name, header=None, nrows=20)
+    best_row, best_count = 0, 0
+    for idx, row in df_raw.iterrows():
+        non_empty = sum(1 for v in row.values if pd.notna(v) and str(v).strip())
+        if non_empty > best_count:
+            best_count = non_empty
+            best_row = int(idx)
+    # Only skip preamble if the best row has significantly more cells than row 0
+    row_0_count = sum(1 for v in df_raw.iloc[0].values if pd.notna(v) and str(v).strip())
+    return best_row if best_count > row_0_count else 0
 
 
 def sample_source_data(path: str, n_rows: int = 100) -> dict:

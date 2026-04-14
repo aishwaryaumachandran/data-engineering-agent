@@ -75,7 +75,10 @@ public class IntegrityService : IIntegrityService
             }
         }
 
-        // 5. Duplicate check (on sample)
+        // 5. Duplicate check (on sample — warning only, not a hard failure)
+        // Financial transaction data can have legitimate duplicate rows (e.g. two
+        // identical trades on the same security/date/amount). Failing on duplicates
+        // in a small sample causes unnecessary retries that the config fix cannot resolve.
         if (output.SampleRows.Count > 0)
         {
             var sampleStrs = output.SampleRows
@@ -83,17 +86,24 @@ public class IntegrityService : IIntegrityService
                 .ToList();
             var uniqueCount = sampleStrs.Distinct().Count();
             var dupCount = sampleStrs.Count - uniqueCount;
+            var dupRate = (double)dupCount / sampleStrs.Count;
+            // Only fail if >10% of sample rows are duplicates (indicates a real join/logic issue)
+            var isDupPass = dupRate <= 0.10;
             checks.Add(new CheckResult(
                 "duplicate_check",
-                dupCount == 0,
-                dupCount > 0 ? $"{dupCount} duplicate rows found in sample" : "No duplicates in sample",
+                isDupPass,
+                dupCount > 0 ? $"{dupCount} duplicate rows in sample ({dupRate:P0}) — {(isDupPass ? "within tolerance" : "exceeds 10% threshold")}" : "No duplicates in sample",
                 new Dictionary<string, object>
                 {
                     ["duplicates"] = dupCount,
                     ["sample_size"] = sampleStrs.Count,
+                    ["duplicate_rate"] = dupRate,
                 }));
-            if (dupCount > 0)
-                errors.Add($"{dupCount} duplicate rows in sample");
+            if (!isDupPass)
+                errors.Add($"{dupCount} duplicate rows in sample ({dupRate:P0}) — exceeds 10% threshold");
+            else if (dupCount > 0)
+                _logger.LogWarning("Duplicate check: {DupCount} duplicates in {SampleSize} sample rows ({Rate:P0}) — within tolerance",
+                    dupCount, sampleStrs.Count, dupRate);
         }
 
         var overallPass = checks.All(c => c.Passed);

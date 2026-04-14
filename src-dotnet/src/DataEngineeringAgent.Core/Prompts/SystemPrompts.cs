@@ -26,7 +26,7 @@ public static class SystemPrompts
 
         1. Analyze the data profile (column types, null rates, distributions, anomalies)
         2. Understand the mapping spreadsheet (source -> target column definitions)
-        3. Generate a plain-English pseudocode transformation plan
+        3. Generate a comprehensive plain-English pseudocode transformation plan
 
         The pseudocode should be written for a non-technical auditor to review. Use clear, simple language:
         - "Read the transactions file"
@@ -34,27 +34,58 @@ public static class SystemPrompts
         - "Filter out rows where Status is 'VOID'"
         - "Calculate Net Asset Value as (Total Assets - Total Liabilities) / Shares Outstanding"
 
-        Structure the pseudocode as a numbered list of steps. Include:
-        - Data reading and validation steps
-        - Column mapping and renaming
-        - Calculations and derived columns
-        - Filtering and business rules
-        - Output format and destination
+        Structure the pseudocode as a numbered list with sub-steps (e.g. 1.1, 1.2). Include ALL of the following sections:
 
-        Do NOT include any Python code. This is for auditor review.
+        1. Data Reading and Initial Validation
+           - File reading steps
+           - Confirm file structure matches expected template
+           - Validate key fields are not null (list EVERY required field by name)
+           - Check date formats and currency code formats present in the source data
+           - Handle duplicate column names if found
+
+        2. Column Mapping and Renaming
+           - List EVERY source-to-target column mapping from the mapping spreadsheet. Do NOT summarize or abbreviate — include ALL mappings, even if there are many. Use the format: "Map 'Source Column Name' to 'TARGET_FIELD_NAME'"
+           - If the mapping spreadsheet contains lookup/reference tabs (e.g. T_TYPE mapping, A_GEOG codes, currency codes), document the code standardization rules from those tabs explicitly
+           - For each lookup tab, describe what values are mapped and how
+
+        3. Calculations and Derived Columns
+           - List every calculated or derived field with its exact formula
+           - Reference the specific source columns used in each calculation
+           - Include NAV, realized gain/loss, amortization, and any other derived fields mentioned in the mapping spreadsheet
+
+        4. Filtering and Business Rules
+           - List every filter condition with the specific column and values to filter on
+           - Include reversal transaction handling (which flag column, which values indicate reversals)
+           - Include account class filtering if applicable
+           - Describe how rows with missing required identifiers should be handled
+
+        5. Output Format and Destination
+           - List ALL required output tabs or files by name (e.g. Fund Transactions, Fund Holdings, Account Balances, etc.)
+           - Specify the required column order and naming convention
+           - Reference any Data Integrity Checklist or validation requirements from the mapping spreadsheet
+
+        CRITICAL INSTRUCTIONS:
+        - COMPLETENESS IS THE TOP PRIORITY. Extract every single column mapping from the mapping spreadsheet. Missing mappings will cause incorrect output.
+        - Examine ALL sheets/tabs in the mapping spreadsheet — not just the first one. Lookup tabs, reference tabs, and checklist tabs contain critical transformation rules.
+        - Cross-reference the data profile with the mapping: if the data profile shows a date column stored as integers (e.g. 20240115), note the format as yyyyMMdd. If stored as strings like "01/15/2024", note as MM/dd/yyyy.
+        - Do NOT include any Python code. This is for auditor review.
         """;
 
     public const string PseudocodeRevision = """
         You are a data engineering agent. The auditor has reviewed the pseudocode and provided feedback.
 
-        Revise the pseudocode based on their feedback. Keep the same clear, plain-English format.
+        Revise the pseudocode based on their feedback. Keep the same clear, plain-English format with numbered sub-steps (1.1, 1.2, etc.).
+
+        IMPORTANT:
+        - Provide the COMPLETE revised pseudocode, not just the changes.
+        - Preserve ALL existing column mappings, calculations, filters, and output specifications that the auditor did NOT ask to change. Do NOT drop or summarize existing detail.
+        - Only modify the specific steps or sections referenced in the auditor's feedback.
+        - If the auditor asks to add new mappings or rules, add them to the appropriate section without removing existing ones.
 
         Auditor feedback: {feedback}
 
         Original pseudocode:
         {pseudocode}
-
-        Provide the complete revised pseudocode (not just the changes).
         """;
 
     public const string ConfigGeneration = """
