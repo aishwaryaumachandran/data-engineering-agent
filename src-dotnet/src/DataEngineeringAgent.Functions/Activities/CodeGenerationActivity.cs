@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using DataEngineeringAgent.Core.Prompts;
 using DataEngineeringAgent.Core.Services;
 using Microsoft.Azure.Functions.Worker;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace DataEngineeringAgent.Functions.Activities;
@@ -11,15 +12,17 @@ public class CodeGenerationActivity
     private readonly IAdlsService _adls;
     private readonly IOpenAiService _openAi;
     private readonly ILogger<CodeGenerationActivity> _logger;
+    private readonly bool _isLocal;
 
     // Patterns that indicate the LLM generated boilerplate instead of just the config
     private static readonly string[] ForbiddenPatterns = ["import ", "spark.read", ".write.parquet", "spark.createDataFrame"];
 
-    public CodeGenerationActivity(IAdlsService adls, IOpenAiService openAi, ILogger<CodeGenerationActivity> logger)
+    public CodeGenerationActivity(IAdlsService adls, IOpenAiService openAi, ILogger<CodeGenerationActivity> logger, IConfiguration config)
     {
         _adls = adls;
         _openAi = openAi;
         _logger = logger;
+        _isLocal = string.Equals(config["RunMode"], "Local", StringComparison.OrdinalIgnoreCase);
     }
 
     [Function(nameof(CodeGeneration))]
@@ -60,7 +63,8 @@ public class CodeGenerationActivity
         }
 
         // Assemble full notebook: inject config + paths into template
-        var notebook = SystemPrompts.SparkTemplate
+        var template = _isLocal ? SystemPrompts.LocalSparkTemplate : SystemPrompts.SparkTemplate;
+        var notebook = template
             .Replace("{input_path}", input.InputPath)
             .Replace("{output_path}", input.OutputPath)
             .Replace("{config_block}", configBlock);

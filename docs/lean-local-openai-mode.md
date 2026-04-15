@@ -19,15 +19,16 @@ Keep **Full** as default so production and existing flows remain unchanged.
 
 | Capability | Full mode | Lean mode |
 |---|---|---|
-| Runtime switch via `Runtime__Mode` | Not implemented | Not implemented |
-| OpenAI pseudocode/code generation | Available | Not implemented as a separate mode |
-| Local file-backed data service (`IAdlsService`) | Not applicable | Not implemented |
-| Local conversation store (`ICosmosService`) | Not applicable | Not implemented |
-| Lean execution service (`IDatabricksService`) | Not applicable | Not implemented |
-| Manual-execution-required status path | Not implemented | Not implemented |
+| Runtime switch via config (`Runtime__Mode`) | Available | Available |
+| Runtime switch via request (`runtime_mode`) | Available | Available |
+| OpenAI pseudocode/code generation | Available | Available |
+| Local file-backed data service | Not applicable | Available (`LocalDataService`) |
+| Local conversation store | Not applicable | Available (`LeanConversationService`) |
+| Spark execution in lean | Databricks run | Available via local PySpark execution (`LeanExecutionService`) |
+| Retry and correction loop | Fix config from Spark/Integrity errors | Revises pseudocode from errors, regenerates code, retries |
 
-> Current codebase behavior is full-stack flow (OpenAI + ADLS + Databricks + Cosmos).  
-> Lean mode in this document is a target design, not live behavior yet.
+> Full mode remains unchanged and default.  
+> Lean mode now runs with OpenAI + local adapters + local PySpark execution.
 
 ---
 
@@ -38,7 +39,7 @@ Keep **Full** as default so production and existing flows remain unchanged.
 | OpenAI | Azure OpenAI via `OpenAiService` | Same (required) |
 | Data access | ADLS Gen2 via `AdlsService` | Local file-backed service implementing `IAdlsService` (reads from repo folders like `input_data\`, writes to `output\`) |
 | Conversation state | Cosmos DB via `CosmosService` | In-memory or local JSON store implementing `ICosmosService` |
-| Spark execution | Databricks via `DatabricksService` | No automatic Spark run; return `manual_execution_required` with instructions to run manually |
+| Spark execution | Databricks via `DatabricksService` | Real local execution via `LeanExecutionService` (Python + local PySpark) |
 | Integrity checks | Uses `IIntegrityService` + ADLS output reads | Either skip in lean or run limited local checks against local output |
 | Durable flow shape | 6-phase orchestration | Same high-level phases, but execution/integrity become lean-safe branches |
 | Approved code reuse | `approved-code\{client}\...` | Same |
@@ -82,8 +83,8 @@ Update DI to branch by `Runtime__Mode`:
 - `LeanConversationService : ICosmosService`
   - stores messages in memory keyed by `thread_id` (or JSON file under temp/session folder)
 - `LeanExecutionService : IDatabricksService`
-  - does **not** claim execution success
-  - returns a manual-run-needed result/message and writes generated code/artifacts to `output\{client}\...` for inspection
+  - executes generated script locally through Python/PySpark
+  - captures stdout/stderr and returns execution errors for retry
 
 ## 4) Orchestrator behavior in lean mode
 
@@ -91,9 +92,8 @@ Update DI to branch by `Runtime__Mode`:
 In lean mode, add a branch so the orchestration can complete without Databricks/ADLS output reads:
 
 - keep change detection, profiling, pseudocode review, code generation
-- do not mark run as completed without real Spark execution
-- stop with a `manual_execution_required` style status/message
-- skip or simplify execution/integrity retry loop until manual run evidence is provided
+- execute generated code locally and run integrity checks against local output
+- on failure, revise pseudocode from errors, regenerate code, and retry
 - log clear lean-mode messages so UI still shows progress
 
 ## 5) Trigger payload (optional but recommended)
@@ -155,6 +155,6 @@ Use only what is needed for Durable Functions + OpenAI + local filesystem mode:
 - Keep all existing full-mode code paths untouched.
 - Make lean-mode behavior explicit in logs/messages to avoid confusion in UI.
 - Ensure full-mode remains the default and is backward compatible.
-- Never return success/completed in lean mode unless code was actually executed.
+- Never return success/completed in lean mode unless local Spark execution actually succeeded.
 - Do not commit real secrets in `local.settings.json`; use placeholders or local-only files.
 

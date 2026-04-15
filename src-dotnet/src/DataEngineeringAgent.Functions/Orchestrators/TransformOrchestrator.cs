@@ -87,17 +87,37 @@ public static class TransformOrchestrator
 
                 // --- Phase 4a: Code Generation ---
                 var sa = input.AdlsAccountName;
+                var isLocal = string.Equals(sa, "local", StringComparison.OrdinalIgnoreCase);
+
                 // DataPath may include container prefix (e.g. "data/CLIENT_001/file.xlsx")
                 // but the abfss URL already specifies the container, so strip it
                 var blobPath = input.DataPath.StartsWith("data/", StringComparison.OrdinalIgnoreCase)
                     ? input.DataPath["data/".Length..] : input.DataPath;
+
+                string inputUrl, outputUrl;
+                if (isLocal)
+                {
+                    var dataRoot = Environment.GetEnvironmentVariable("Local__DataRoot") ?? "input_data";
+                    var outputRoot = Environment.GetEnvironmentVariable("Local__OutputRoot") ?? "output";
+                    // Use forward slashes so the path is valid in Python string literals
+                    inputUrl = Path.Combine(dataRoot, blobPath.Replace('/', Path.DirectorySeparatorChar))
+                        .Replace('\\', '/');
+                    outputUrl = Path.Combine(outputRoot, outputPath.Replace('/', Path.DirectorySeparatorChar))
+                        .Replace('\\', '/');
+                }
+                else
+                {
+                    inputUrl = $"abfss://data@{sa}.dfs.core.windows.net/{blobPath}";
+                    outputUrl = $"abfss://output@{sa}.dfs.core.windows.net/{outputPath}";
+                }
+
                 pysparkCode = await context.CallActivityAsync<string>(
                     nameof(CodeGenerationActivity.CodeGeneration),
                     new CodeGenerationInput(
                         input.ClientId,
                         pseudocode,
-                        $"abfss://data@{sa}.dfs.core.windows.net/{blobPath}",
-                        $"abfss://output@{sa}.dfs.core.windows.net/{outputPath}",
+                        inputUrl,
+                        outputUrl,
                         input.DataPath));
             }
 

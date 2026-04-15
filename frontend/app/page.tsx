@@ -16,8 +16,8 @@ export default function Dashboard() {
     try {
       const result = await startTransform({
         client_id: clientId,
-        mapping_path: `mappings/${clientId}/mapping.xlsm`,
-        data_path: `data/${clientId}/transactions.xlsx`,
+        mapping_path: `${clientId}/mapping/mapping.xlsm`,
+        data_path: `${clientId}/client/transactions.xlsx`,
       });
       router.push(`/transform/${result.instance_id}`);
     } catch (err) {

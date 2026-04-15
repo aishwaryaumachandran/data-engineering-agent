@@ -259,4 +259,106 @@ public static class SystemPrompts
         final_df.write.mode("overwrite").parquet(OUTPUT_PATH)
         logger.info("Transform complete.")
         """;
+
+    public const string LocalSparkTemplate = """
+        import io, pandas as pd, logging
+        from pyspark.sql import SparkSession, functions as F
+        from pyspark.sql.types import StringType, DoubleType, IntegerType, LongType, DateType
+
+        logging.basicConfig(level=logging.INFO)
+        logger = logging.getLogger("transform")
+
+        spark = (SparkSession.builder
+            .appName("transform")
+            .config("spark.hadoop.io.nativeio.enabled", "false")
+            .config("spark.sql.ansi.enabled", "false")
+            .getOrCreate())
+
+        INPUT_PATH = "{input_path}"
+        OUTPUT_PATH = "{output_path}"
+
+        # --- BEGIN TRANSFORM_CONFIG ---
+        {config_block}
+        # --- END TRANSFORM_CONFIG ---
+
+        # STEP 1: Read input
+        def clean_column_names(cols):
+            seen = {}; result = []
+            for c in cols:
+                n = seen.get(c, 0)
+                result.append(f"{c}_{n}" if n > 0 else c)
+                seen[c] = n + 1
+            return result
+
+        if INPUT_PATH.lower().endswith((".xlsx", ".xlsm", ".xls")):
+            raw = spark.read.format("binaryFile").load(INPUT_PATH).collect()[0]["content"]
+            pdf = pd.read_excel(io.BytesIO(raw), engine="openpyxl")
+            pdf = pdf.dropna(how="all")
+            pdf.columns = clean_column_names(list(pdf.columns))
+            df = spark.createDataFrame(pdf)
+        elif INPUT_PATH.lower().endswith(".csv"):
+            df = spark.read.csv(INPUT_PATH, header=True, inferSchema=True)
+        else:
+            raise ValueError(f"Unsupported format: {INPUT_PATH}")
+
+        logger.info(f"Loaded {df.count()} rows, {len(df.columns)} columns")
+
+        # STEP 2: Column renames
+        for src, tgt in TRANSFORM_CONFIG.get("column_renames", {}).items():
+            if src in df.columns:
+                df = df.withColumnRenamed(src, tgt)
+
+        # STEP 3: Code mappings (native Spark — no Python UDFs)
+        for col_name, mapping in TRANSFORM_CONFIG.get("code_mappings", {}).items():
+            if col_name in df.columns and mapping:
+                expr = F.col(col_name)
+                for old_val, new_val in mapping.items():
+                    expr = F.when(F.col(col_name) == old_val, F.lit(new_val)).otherwise(expr)
+                df = df.withColumn(col_name, expr)
+
+        # STEP 4: Calculated columns
+        _ns = {"F": F, "col": F.col, "lit": F.lit, "StringType": StringType,
+               "DoubleType": DoubleType, "IntegerType": IntegerType, "__builtins__": {}}
+
+        for calc in TRANSFORM_CONFIG.get("calculated_columns", []):
+            req = calc.get("requires", [])
+            if all(c in df.columns for c in req):
+                df = df.withColumn(calc["name"], eval(calc["expr"], _ns))
+            else:
+                logger.warning(f"Skipping calc '{calc['name']}': missing {[c for c in req if c not in df.columns]}")
+
+        # STEP 5: Filters
+        for filt in TRANSFORM_CONFIG.get("filters", []):
+            req = filt.get("requires", [])
+            if all(c in df.columns for c in req):
+                df = df.filter(eval(filt["expr"], _ns))
+
+        for col_name in TRANSFORM_CONFIG.get("require_not_null", []):
+            if col_name in df.columns:
+                df = df.filter(F.col(col_name).isNotNull())
+
+        # STEP 6: Date formatting
+        for col_name, src_fmt in TRANSFORM_CONFIG.get("date_columns", {}).items():
+            if col_name in df.columns:
+                df = df.withColumn(col_name,
+                    F.date_format(F.to_date(F.col(col_name).cast("string"), src_fmt), "MM/dd/yyyy"))
+
+        # STEP 7: Select output columns + write output
+        out_spec = TRANSFORM_CONFIG.get("output_columns", "auto")
+        if out_spec == "auto":
+            out_cols = list(TRANSFORM_CONFIG.get("column_renames", {}).values())
+            for calc in TRANSFORM_CONFIG.get("calculated_columns", []):
+                if calc["name"] not in out_cols and calc["name"] in df.columns:
+                    out_cols.append(calc["name"])
+        else:
+            out_cols = out_spec
+
+        final_cols = [c for c in out_cols if c in df.columns]
+        final_df = df.select(final_cols)
+
+        logger.info(f"Writing {final_df.count()} rows, {len(final_cols)} columns to {OUTPUT_PATH}")
+        import os; os.makedirs(OUTPUT_PATH, exist_ok=True)
+        final_df.toPandas().to_parquet(os.path.join(OUTPUT_PATH, "part-00000.parquet"), index=False, version='1.0')
+        logger.info("Transform complete.")
+        """;
 }
