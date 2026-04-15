@@ -1,0 +1,48 @@
+{
+  "Values": {
+    // ── Fixed ──────────────────────────────────────────────────────────
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+    // "Cloud" = real Azure services. Omit RunMode or set to anything other than "Local".
+    "RunMode": "Cloud",
+
+    // ── Repo Root ──────────────────────────────────────────────────────
+    // Absolute path to the repo on your machine
+    "REPO_ROOT": "<REPO_ROOT>",
+
+    // ── Azure Storage (Functions runtime — identity-based auth) ────────
+    // Storage account used by Durable Functions for orchestration state.
+    // Uses split-URI format with DefaultAzureCredential (az login / managed identity).
+    "AzureWebJobsStorage__blobServiceUri": "https://<FUNCTIONS_STORAGE_ACCOUNT>.blob.core.windows.net",
+    "AzureWebJobsStorage__queueServiceUri": "https://<FUNCTIONS_STORAGE_ACCOUNT>.queue.core.windows.net",
+    "AzureWebJobsStorage__tableServiceUri": "https://<FUNCTIONS_STORAGE_ACCOUNT>.table.core.windows.net",
+    "AzureWebJobsStorage__credential": "azurecli",
+
+    // ── Azure OpenAI ───────────────────────────────────────────────────
+    // Endpoint URL (e.g. https://my-openai.cognitiveservices.azure.com/)
+    "OpenAi__Endpoint": "<AZURE_OPENAI_ENDPOINT>",
+    // Model deployment name (e.g. gpt-4o, gpt-4.1)
+    "OpenAi__DeploymentName": "<DEPLOYMENT_NAME>",
+
+    // ── ADLS Gen2 ──────────────────────────────────────────────────────
+    // Storage account name for client data & outputs (builds abfss:// paths)
+    // Auth: DefaultAzureCredential (managed identity or az login)
+    "Adls__AccountName": "<ADLS_ACCOUNT_NAME>",
+
+    // ── Cosmos DB ──────────────────────────────────────────────────────
+    // Account endpoint (e.g. https://my-cosmos.documents.azure.com:443/)
+    // Auth: DefaultAzureCredential — no key needed
+    "Cosmos__Endpoint": "<COSMOS_ENDPOINT>",
+    // Database name (container "conversations" is created automatically)
+    "Cosmos__DatabaseName": "agent-db",
+
+    // ── Databricks ─────────────────────────────────────────────────────
+    // Workspace URL (e.g. https://adb-1234567890.4.azuredatabricks.net)
+    // API auth: DefaultAzureCredential
+    "Databricks__Host": "<DATABRICKS_HOST>",
+    // Service principal for Spark ABFS OAuth (read/write ADLS from Spark)
+    "Databricks__SpClientId": "<SP_CLIENT_ID>",
+    "Databricks__SpClientSecret": "<SP_CLIENT_SECRET>",
+    "Databricks__TenantId": "<AZURE_TENANT_ID>"
+  },
+  "IsEncrypted": false
+}

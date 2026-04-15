@@ -1,0 +1,53 @@
+{
+  "Values": {
+    // ── Fixed (do not change) ──────────────────────────────────────────
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "RunMode": "Local",
+    "Adls__AccountName": "local",
+    "Cosmos__Endpoint": "local",
+    "Cosmos__DatabaseName": "agent-db",
+    "Databricks__Host": "local",
+    "Databricks__SpClientId": "not-used",
+    "Databricks__SpClientSecret": "not-used",
+    "Databricks__TenantId": "not-used",
+
+    // ── You MUST fill these ────────────────────────────────────────────
+
+    // Absolute path to the repo root on your machine
+    "REPO_ROOT": "<REPO_ROOT>",
+
+    // Azure OpenAI endpoint (e.g. https://<resource>.cognitiveservices.azure.com/)
+    "OpenAi__Endpoint": "<AZURE_OPENAI_ENDPOINT>",
+
+    // Azure OpenAI model deployment name (e.g. gpt-4o, gpt-5.2)
+    "OpenAi__DeploymentName": "<DEPLOYMENT_NAME>",
+
+    // ── Local paths (set to match your machine) ────────────────────────
+
+    // Where client input data lives (mapping + transactions files)
+    "Local__DataRoot": "<REPO_ROOT>\\input_data",
+
+    // Where transform outputs are written
+    "Local__OutputRoot": "<REPO_ROOT>\\output",
+
+    // Where chat/conversation JSON logs are stored
+    "Local__ChatRoot": "<REPO_ROOT>\\output\\chat",
+
+    // Where approved pseudocode + transform.py are saved
+    "Local__ApprovedCodeRoot": "<REPO_ROOT>\\approved-code",
+
+    // Path to spark-submit in your Python venv
+    "Local__SparkSubmitPath": "<REPO_ROOT>\\env\\Scripts\\spark-submit.cmd",
+
+    // Path to the pyspark package directory (contains jars/, bin/, etc.)
+    "Local__SparkHome": "<PYTHON_INSTALL>\\Lib\\site-packages\\pyspark",
+
+    // Path to your system Python executable (NOT the venv one)
+    "Local__PythonPath": "<PYTHON_INSTALL>\\python.exe",
+
+    // Path to Hadoop winutils directory (must contain bin\\winutils.exe)
+    "Local__HadoopHome": "<REPO_ROOT>\\hadoop"
+  },
+  "IsEncrypted": false
+}
