@@ -27,6 +27,7 @@ frontend/out/
 # Azure Functions local settings
 src-python/local.settings.json
 src-dotnet/**/local.settings.json
+src-dotnet/**/local.settings.*.json
 
 # Test results
 **/test-results/
@@ -40,6 +41,12 @@ src-dotnet/**/local.settings.json
 
 # Claude Code
 .claude/
+
+# Azurite (local Azure Storage emulator)
+__azurite_db_*
+__blobstorage__/
+__queuestorage__/
+AzuriteConfig
 
 # Project-specific
 input_data/

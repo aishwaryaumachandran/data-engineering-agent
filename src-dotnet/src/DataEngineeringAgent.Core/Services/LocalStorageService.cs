@@ -85,6 +85,17 @@ public class LocalStorageService : IAdlsService
         // Spark writes a directory of part files
         if (Directory.Exists(outputDir))
         {
+            // Prefer CSV (lean mode writes CSV)
+            var csvFiles = Directory.GetFiles(outputDir, "*.csv", SearchOption.AllDirectories)
+                .Where(f => !Path.GetFileName(f).StartsWith('_'))
+                .ToList();
+
+            if (csvFiles.Count > 0)
+            {
+                var data = await File.ReadAllBytesAsync(csvFiles[0]);
+                return ReadCsvSample(data, nRows);
+            }
+
             var parquetFiles = Directory.GetFiles(outputDir, "*.parquet", SearchOption.AllDirectories)
                 .Where(f => !Path.GetFileName(f).StartsWith('_'))
                 .ToList();
@@ -114,22 +125,11 @@ public class LocalStorageService : IAdlsService
 
     private string ResolvePath(string container, string path)
     {
-        // In local mode, paths are relative to DataRoot (e.g. "CLIENT_001/mapping/mapping.xlsm")
-        // Strip container prefix if present (legacy ADLS convention: "mappings/CLIENT_001/...")
+        // Paths match cloud layout: "CLIENT_001/mapping.xlsm", "CLIENT_001/transactions.xlsx"
+        // Strip container prefix if present (e.g. "mappings/CLIENT_001/..." → "CLIENT_001/...")
         var prefix = container + "/";
         if (path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             path = path[prefix.Length..];
-
-        // Also strip alternate container names (mappings→mapping, data→client)
-        var altPrefixes = new[] { "mappings/", "data/" };
-        foreach (var alt in altPrefixes)
-        {
-            if (path.StartsWith(alt, StringComparison.OrdinalIgnoreCase))
-            {
-                path = path[alt.Length..];
-                break;
-            }
-        }
 
         return Path.Combine(_opts.DataRoot, path.Replace('/', Path.DirectorySeparatorChar));
     }

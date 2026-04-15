@@ -51,9 +51,20 @@ public class CodeGenerationActivity
         // Strip markdown code fences if present
         configBlock = StripCodeFences(configBlock);
 
+        _logger.LogInformation("Raw LLM config output ({Len} chars): {Preview}",
+            configBlock.Length, configBlock.Length > 500 ? configBlock[..500] + "..." : configBlock);
+
+        // If LLM returned a bare dict without the variable assignment, wrap it
+        if (!configBlock.Contains("TRANSFORM_CONFIG") && configBlock.TrimStart().StartsWith("{"))
+        {
+            configBlock = "TRANSFORM_CONFIG = " + configBlock;
+            _logger.LogWarning("LLM omitted TRANSFORM_CONFIG assignment — auto-prepended");
+        }
+
         // Validate: must contain TRANSFORM_CONFIG, must NOT contain boilerplate
         if (!configBlock.Contains("TRANSFORM_CONFIG"))
-            throw new InvalidOperationException("LLM output does not contain TRANSFORM_CONFIG");
+            throw new InvalidOperationException(
+                $"LLM output does not contain TRANSFORM_CONFIG. First 300 chars: {configBlock[..Math.Min(300, configBlock.Length)]}");
 
         foreach (var pattern in ForbiddenPatterns)
         {
@@ -63,8 +74,14 @@ public class CodeGenerationActivity
         }
 
         // Assemble full notebook: inject config + paths into template
-        var template = _isLocal ? SystemPrompts.LocalSparkTemplate : SystemPrompts.SparkTemplate;
-        var notebook = template
+        var sparkImport = _isLocal ? SystemPrompts.LocalImport : SystemPrompts.CloudImport;
+        var sparkInit = _isLocal ? SystemPrompts.LocalSparkInit : SystemPrompts.CloudSparkInit;
+        var writeBlock = _isLocal ? SystemPrompts.LocalWriteBlock : SystemPrompts.CloudWriteBlock;
+
+        var notebook = SystemPrompts.SparkTemplate
+            .Replace("{spark_import}", sparkImport)
+            .Replace("{spark_init}", sparkInit)
+            .Replace("{write_block}", writeBlock)
             .Replace("{input_path}", input.InputPath)
             .Replace("{output_path}", input.OutputPath)
             .Replace("{config_block}", configBlock);

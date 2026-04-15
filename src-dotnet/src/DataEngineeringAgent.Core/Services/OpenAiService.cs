@@ -81,24 +81,9 @@ public class OpenAiService : IOpenAiService
             lines.RemoveAt(0);
             if (lines.Count > 0 && lines[^1].Trim() == "```")
                 lines.RemoveAt(lines.Count - 1);
-            text = string.Join('\n', lines);
+            text = string.Join('\n', lines).Trim();
         }
 
-        // Strip leading non-code text
-        var finalLines = text.Split('\n');
-        int startIdx = 0;
-        for (int i = 0; i < finalLines.Length; i++)
-        {
-            var stripped = finalLines[i].Trim();
-            if (stripped.StartsWith("import ") || stripped.StartsWith("from ") ||
-                stripped.StartsWith("#") || stripped.StartsWith("\"\"\"") ||
-                stripped.StartsWith("'''") || stripped == "")
-            {
-                startIdx = i;
-                break;
-            }
-        }
-
-        return string.Join('\n', finalLines.Skip(startIdx));
+        return text;
     }
 }
